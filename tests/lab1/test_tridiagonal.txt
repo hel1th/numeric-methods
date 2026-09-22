@@ -1,0 +1,29 @@
+# Test 1: n = 4, exact solution: [1.0, 2.0, 3.0, 4.0]
+# subdiagonal a (length 3)
+-2.0 -2.0 -2.0
+# main diagonal b (length 4)
+10.0 10.0 10.0 10.0
+# superdiagonal c (length 3)
+-3.0 -3.0 -3.0
+# rhs d (length 4)
+4.0 9.0 14.0 34.0
+---
+# Test 2: n = 5, exact solution: [2.0, 0.0, -1.0, 3.0, 1.0]
+# subdiagonal a (length 4)
+1.0 1.0 1.0 1.0
+# main diagonal b (length 5)
+4.0 4.0 4.0 4.0 4.0
+# superdiagonal c (length 4)
+1.0 1.0 1.0 1.0
+# rhs d (length 5)
+8.0 1.0 -1.0 12.0 7.0
+# ---
+# # Guaranteed failure: denom = 2e-8 passes atol=1e-8 check, residual exceeds 1e-9
+# # a (length 2)
+# 1.0 1.0
+# b (length 3)
+# 1.0 1.00000002 1.0
+# # c (length 2)
+# 1.0 1.0
+# # d (length 3)
+# 1.0 0.0 1.0
