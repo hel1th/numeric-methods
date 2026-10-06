@@ -1,13 +1,15 @@
-"""
-Лабораторная работа 1.2: Метод прогонки для трехдиагональных СЛАУ (алгоритм Томаса).
-
-Система уравнений вида:
-  b_0 * x_0 + c_0 * x_1 = d_0
-  a_{i-1} * x_{i-1} + b_i * x_i + c_i * x_{i+1} = d_i,  i = 1, ..., n-2
-  a_{n-2} * x_{n-2} + b_{n-1} * x_{n-1} = d_{n-1}
-"""
-
+from pathlib import Path
+import sys
 import numpy as np
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+try:
+    from lab1.io_utils import read_tridiagonal_systems
+except ImportError:
+    from io_utils import read_tridiagonal_systems
 
 
 def check_diagonal_dominance(
@@ -15,13 +17,6 @@ def check_diagonal_dominance(
     b: np.ndarray,
     c: np.ndarray,
 ) -> bool:
-    """
-    Проверяет условие диагонального преобладания матрицы:
-      |b_0| >= |c_0|
-      |b_i| >= |a_{i-1}| + |c_i|,  i = 1, ..., n-2
-      |b_{n-1}| >= |a_{n-2}|
-    с хотя бы одним строгим неравенством (достаточное условие корректности прогонки).
-    """
     n = len(b)
     has_strict = False
 
@@ -31,7 +26,6 @@ def check_diagonal_dominance(
     if abs(b[0]) > abs(c[0]):
         has_strict = True
 
-    # Промежуточные строки
     for i in range(1, n - 1):
         row_sum = abs(a[i - 1]) + abs(c[i])
         if abs(b[i]) < row_sum:
@@ -39,7 +33,6 @@ def check_diagonal_dominance(
         if abs(b[i]) > row_sum:
             has_strict = True
 
-    # Последняя строка
     if abs(b[n - 1]) < abs(a[n - 2]):
         return False
     if abs(b[n - 1]) > abs(a[n - 2]):
@@ -55,20 +48,14 @@ def compute_residual(
     d: np.ndarray,
     x: np.ndarray,
 ) -> float:
-    """
-    Вычисляет евклидову норму вектора невязки r = Ax - d для трехдиагональной матрицы.
-    """
     n = len(d)
     Ax = np.zeros(n, dtype=np.float64)
 
-    # Первая строка
     Ax[0] = b[0] * x[0] + c[0] * x[1]
 
-    # Промежуточные строки
     for i in range(1, n - 1):
         Ax[i] = a[i - 1] * x[i - 1] + b[i] * x[i] + c[i] * x[i + 1]
 
-    # Последняя строка
     Ax[n - 1] = a[n - 2] * x[n - 2] + b[n - 1] * x[n - 1]
 
     residual = Ax - d
@@ -80,21 +67,9 @@ def tridiagonal_solve(
     b: np.ndarray,
     c: np.ndarray,
     d: np.ndarray,
-) -> np.ndarray:
-    """
-    Решает трехдиагональную СЛАУ методом прогонки.
+    return_coeffs: bool = False,
+) -> np.ndarray | tuple[np.ndarray, np.ndarray, np.ndarray]:
 
-    Формула связи: x_i = P_i * x_{i+1} + Q_i
-
-    Параметры:
-      a: поддиагональ (длина n - 1)
-      b: главная диагональ (длина n)
-      c: наддиагональ (длина n - 1)
-      d: вектор правой части (длина n)
-
-    Возвращает:
-      x: вектор решения длины n
-    """
     a = np.asarray(a, dtype=np.float64)
     b = np.asarray(b, dtype=np.float64)
     c = np.asarray(c, dtype=np.float64)
@@ -107,7 +82,6 @@ def tridiagonal_solve(
     P = np.zeros(n - 1, dtype=np.float64)
     Q = np.zeros(n, dtype=np.float64)
 
-    # --- Прямой ход: вычисление прогоночных коэффициентов ---
     if np.isclose(b[0], 0.0):
         raise ValueError("Деление на ноль: b[0] равен 0.")
 
@@ -122,42 +96,75 @@ def tridiagonal_solve(
         P[i] = -c[i] / denom
         Q[i] = (d[i] - a[i - 1] * Q[i - 1]) / denom
 
-    # Последний коэффициент Q
     denom_last = b[n - 1] + a[n - 2] * P[n - 2]
     if np.isclose(denom_last, 0.0):
-        raise ValueError(f"Деление на ноль в знаменателе на последнем шаге {n - 1}.")
+        raise ValueError(
+            f"Деление на ноль в знаменателе на последнем шаге {n - 1}.")
 
     Q[n - 1] = (d[n - 1] - a[n - 2] * Q[n - 2]) / denom_last
 
-    # --- Обратный ход: нахождение вектора x ---
     x = np.zeros(n, dtype=np.float64)
     x[n - 1] = Q[n - 1]
 
     for i in range(n - 2, -1, -1):
         x[i] = P[i] * x[i + 1] + Q[i]
 
+    if return_coeffs:
+        return x, P, Q
+
     return x
 
 
 def main() -> None:
-    """Демонстрация метода прогонки."""
-    # Пример системы:
-    # 10*x0 - 2*x1            = 8
-    #  1*x0 + 10*x1 - 2*x2     = 9
-    #         1*x1 + 10*x2 - 2*x3 = 9
-    #                1*x2 + 10*x3 = 11
-    a = np.array([1.0, 1.0, 1.0])
-    b = np.array([10.0, 10.0, 10.0, 10.0])
-    c = np.array([-2.0, -2.0, -2.0])
-    d = np.array([8.0, 9.0, 9.0, 11.0])
+    if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
 
-    print("Проверка диагонального преобладания:", check_diagonal_dominance(a, b, c))
+    data_file = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(
+        __file__).parent / "data" / "tridiagonal.txt"
+    if not data_file.exists():
+        raise FileNotFoundError(
+            f"Файл с входными данными не найден: {data_file}")
 
-    x = tridiagonal_solve(a, b, c, d)
-    print("Решение x:", np.round(x, 4))
+    print("=" * 70)
+    print("Лабораторная работа 1.2: Метод прогонки для трехдиагональных СЛАУ")
+    print(f"Чтение входных данных из файла: {data_file}")
+    print("=" * 70)
 
-    residual = compute_residual(a, b, c, d, x)
-    print(f"Норма невязки ||Ax - d||: {residual:.2e}")
+    systems = read_tridiagonal_systems(data_file)
+    for idx, (a, b, c, d) in enumerate(systems, start=1):
+        n = len(d)
+        print(f"\n>>> СИСТЕМА {idx} (размерность n = {n}) <<<")
+        print("Поддиагональ a (длина n-1):", a)
+        print("Главная диагональ b (длина n):", b)
+        print("Наддиагональ c (длина n-1):", c)
+        print("Правая часть d (длина n):", d)
+
+        is_dom = check_diagonal_dominance(a, b, c)
+        print(
+            f"Диагональное преобладание: {'выполнено' if is_dom else 'не выполнено'}")
+
+        res = tridiagonal_solve(a, b, c, d, return_coeffs=True)
+        assert isinstance(res, tuple)
+        x, P, Q = res
+
+        print("\nПрогоночные коэффициенты:")
+        print("   Коэффициенты P (длина n-1):")
+        for i, p_val in enumerate(P, start=1):
+            print(f"     P_{i} = {p_val:12.6f}")
+        print("   Коэффициенты Q (длина n):")
+        for i, q_val in enumerate(Q, start=1):
+            print(f"     Q_{i} = {q_val:12.6f}")
+
+        print("\nИтоговое решение системы уравнений x:")
+        for i, x_val in enumerate(x, start=1):
+            print(f"     x_{i} = {x_val:12.6f}")
+
+        residual = compute_residual(a, b, c, d, x)
+        print(f"\n   Норма вектора невязки ||Ax - d||: {residual:.2e}")
+        print("=" * 70)
 
 
 if __name__ == "__main__":

@@ -1,30 +1,22 @@
-"""
-Лабораторная работа 1.3: Итерационные методы решения СЛАУ.
-
-Реализованы:
-  - Метод простых итераций (метод Якоби)
-  - Метод Зейделя (Гаусса-Зейделя)
-"""
-
+from pathlib import Path
+import sys
 import numpy as np
+
+# Добавляем корень проекта в sys.path
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+try:
+    from lab1.io_utils import read_linear_systems
+except ImportError:
+    from io_utils import read_linear_systems
 
 
 def prepare_iteration_system(
     A: np.ndarray,
     b: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray, float]:
-    """
-    Приводит СЛАУ Ax = b к эквивалентному итерационному виду x = alpha * x + beta.
-
-    Формулы:
-      alpha[i, j] = -A[i, j] / A[i, i]  (при i != j),  alpha[i, i] = 0
-      beta[i] = b[i] / A[i, i]
-
-    Возвращает:
-      alpha: матрица итераций
-      beta: вектор правых частей
-      alpha_norm: бесконечная норма матрицы alpha (max по строкам суммы модулей)
-    """
     A = np.asarray(A, dtype=np.float64)
     b = np.asarray(b, dtype=np.float64)
 
@@ -44,7 +36,6 @@ def prepare_iteration_system(
             if i != j:
                 alpha[i, j] = -A[i, j] / A[i, i]
 
-    # Бесконечная норма (максимальная строчная норма)
     alpha_norm = float(np.max(np.sum(np.abs(alpha), axis=1)))
     return alpha, beta, alpha_norm
 
@@ -55,21 +46,10 @@ def simple_iteration(
     eps: float = 1e-4,
     max_iter: int = 10000,
 ) -> tuple[np.ndarray, int]:
-    """
-    Решает СЛАУ Ax = b методом простых итераций.
 
-    Критерий остановки (при ||alpha|| < 1):
-      ||x^(k) - x^(k-1)|| <= (1 - ||alpha||) / ||alpha|| * eps
-      что эквивалентно: factor * ||x^(k) - x^(k-1)|| <= eps, где factor = ||alpha|| / (1 - ||alpha||)
-
-    Возвращает:
-      x: вектор приближенного решения
-      iterations: количество выполненных итераций
-    """
     alpha, beta, alpha_norm = prepare_iteration_system(A, b)
     x = beta.copy()
 
-    # Множитель для апостериорной оценки погрешности
     factor = (alpha_norm / (1.0 - alpha_norm)) if alpha_norm < 1.0 else 1.0
 
     for it in range(1, max_iter + 1):
@@ -90,26 +70,10 @@ def seidel_iteration(
     eps: float = 1e-4,
     max_iter: int = 10000,
 ) -> tuple[np.ndarray, int]:
-    """
-    Решает СЛАУ Ax = b методом Зейделя.
-
-    Каждая компонента вычисляется с использованием обновленных значений
-    текущей итерации для j < i:
-      x_i^(k+1) = beta_i + sum_{j < i} alpha_{ij} x_j^(k+1) + sum_{j > i} alpha_{ij} x_j^(k)
-
-    Критерий остановки:
-      factor * ||x^(k+1) - x^(k)|| <= eps,
-      где factor = ||C|| / (1 - ||alpha||), C — строго верхнетреугольная часть alpha.
-
-    Возвращает:
-      x: вектор приближенного решения
-      iterations: количество выполненных итераций
-    """
     alpha, beta, alpha_norm = prepare_iteration_system(A, b)
     n = len(b)
     x = beta.copy()
 
-    # Выделяем строго верхнетреугольную часть C матрицы alpha
     C = np.triu(alpha, 1)
     c_norm = float(np.max(np.sum(np.abs(C), axis=1)))
 
@@ -127,7 +91,7 @@ def seidel_iteration(
 
         for i in range(n):
             left_sum = np.dot(alpha[i, :i], x_next[:i])
-            right_sum = np.dot(alpha[i, i + 1 :], x[i + 1 :])
+            right_sum = np.dot(alpha[i, i + 1:], x[i + 1:])
             x_next[i] = beta[i] + left_sum + right_sum
 
         diff = float(np.max(np.abs(x_next - x)))
@@ -141,25 +105,66 @@ def seidel_iteration(
 
 
 def main() -> None:
-    """Сравнение методов простых итераций и Зейделя."""
-    A = np.array([[10.0, 1.0, -1.0], [1.0, 10.0, -1.0], [-1.0, 1.0, 10.0]])
-    b = np.array([11.0, 10.0, 10.0])
-    eps = 1e-5
+    if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
 
-    alpha, beta, alpha_norm = prepare_iteration_system(A, b)
-    print(
-        f"Норма матрицы alpha: ||alpha||_inf = {alpha_norm:.4f} (< 1: условие сходимости выполнено)"
-    )
+    data_file = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).parent / "data" / "iterations.txt"
+    if not data_file.exists():
+        raise FileNotFoundError(f"Файл с входными данными не найден: {data_file}")
 
-    x_simple, it_simple = simple_iteration(A, b, eps=eps)
-    print(f"\nМетод простых итераций: {it_simple} шагов")
-    print("Решение x:", np.round(x_simple, 5))
-    print("Невязка:", np.round(A @ x_simple - b, 7))
+    eps = 1e-6
 
-    x_seidel, it_seidel = seidel_iteration(A, b, eps=eps)
-    print(f"\nМетод Зейделя: {it_seidel} шагов")
-    print("Решение x:", np.round(x_seidel, 5))
-    print("Невязка:", np.round(A @ x_seidel - b, 7))
+    print("=" * 70)
+    print("Лабораторная работа 1.3: Метод простых итераций (Якоби) и метод Зейделя")
+    print(f"Чтение входных данных из файла: {data_file}")
+    print("=" * 70)
+
+    systems = read_linear_systems(data_file)
+    for idx, (A, b) in enumerate(systems, start=1):
+        n = A.shape[0]
+        print(f"\n>>> СИСТЕМА {idx} (размерность n = {n}) <<<")
+        print("Матрица A:\n", A)
+        print("Вектор b:\n", b)
+
+        alpha, beta, alpha_norm = prepare_iteration_system(A, b)
+        print(f"Норма матрицы alpha: ||alpha||_inf = {alpha_norm:.4f}")
+        if alpha_norm < 1.0:
+            print("  Условие сходимости ||alpha|| < 1 выполнено!")
+        else:
+            print("  Внимание: ||alpha|| >= 1, достаточный критерий сходимости не выполнен.")
+
+        print(f"\nЗаданная точность вычислений: eps = {eps:.1e}")
+
+        x_simple, it_simple = simple_iteration(A, b, eps=eps)
+        x_seidel, it_seidel = seidel_iteration(A, b, eps=eps)
+
+        print("\nКоличество выполненных итераций:")
+        print(f"   Метод простых итераций (Якоби): {it_simple} шагов")
+        print(f"   Метод Зейделя:                  {it_seidel} шагов")
+
+        x_exact = np.linalg.solve(A, b)
+        print("\nРешения системы:")
+        print("   Метод простых итераций: x =", np.round(x_simple, 6))
+        print("     Невязка ||Ax - b||:", np.max(np.abs(A @ x_simple - b)))
+        print("   Метод Зейделя:          x =", np.round(x_seidel, 6))
+        print("     Невязка ||Ax - b||:", np.max(np.abs(A @ x_seidel - b)))
+        print("   Эталонное решение (NumPy): x =", np.round(x_exact, 6))
+        print(f"     Отклонение простой итерации от эталона: {np.max(np.abs(x_simple - x_exact)):.2e}")
+        print(f"     Отклонение метода Зейделя от эталона:   {np.max(np.abs(x_seidel - x_exact)):.2e}")
+
+        print("\nСравнение методов по скорости сходимости:")
+        speedup = it_simple / it_seidel if it_seidel > 0 else 1.0
+        print(f"   Отношение числа шагов (Якоби / Зейдель): {speedup:.2f}x")
+        if it_seidel < it_simple:
+            print(f"   -> Метод Зейделя сошелся быстрее метода Якоби на {it_simple - it_seidel} итераций.")
+        elif it_seidel == it_simple:
+            print("   -> Оба метода потребовали одинаковое число итераций.")
+        else:
+            print("   -> Метод Якоби сошелся быстрее метода Зейделя.")
+        print("=" * 70)
 
 
 if __name__ == "__main__":

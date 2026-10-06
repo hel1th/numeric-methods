@@ -1,26 +1,30 @@
-"""
-Лабораторная работа 1.5: QR-разложение матриц и QR-алгоритм
-для нахождения собственных значений произвольных матриц.
 
-Задание:
-  - Реализовать алгоритм QR-разложения с помощью отражений Хаусхолдера.
-  - На его основе реализовать QR-алгоритм поиска всех собственных значений
-    произвольной вещественной матрицы (включая комплексные).
-  - Входные данные: матрица A, точность eps.
-"""
-
+from pathlib import Path
+import sys
 from typing import Any
-
 import numpy as np
 
 
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+try:
+    from lab1.io_utils import read_matrices
+except ImportError:
+    from io_utils import read_matrices
+
+# Гарантируем корректный вывод на консоли Windows
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
+
 def qr_decomposition(A: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Выполняет QR-разложение матрицы A методом отражений Хаусхолдера:
-      A = Q @ R
-    где Q — ортогональная матрица (Q^T @ Q = I),
-        R — верхнетреугольная матрица.
-    """
+
     A_curr = np.asarray(A, dtype=np.float64).copy()
     m, n = A_curr.shape
     if m != n:
@@ -36,7 +40,6 @@ def qr_decomposition(A: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         if np.isclose(norm_x, 0.0):
             continue
 
-        # Вектор нормали плоскости отражения Хаусхолдера: v = x + sign(x_0) * ||x|| * e_1
         sign = 1.0 if x[0] >= 0.0 else -1.0
         v = x.copy()
         v[0] += sign * norm_x
@@ -45,45 +48,34 @@ def qr_decomposition(A: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         if np.isclose(norm_v, 0.0):
             continue
 
-        u = v / norm_v  # единичный вектор отражения: H = I - 2 * u @ u^T
+        u = v / norm_v
 
-        # Преобразование R: R[k:, k:] = H @ R[k:, k:] = R[k:, k:] - 2 * u * (u^T @ R[k:, k:])
         R[k:, k:] -= 2.0 * np.outer(u, u @ R[k:, k:])
 
-        # Накопление матрицы Q: Q[:, k:] = Q[:, k:] @ H
         Q[:, k:] -= 2.0 * (Q[:, k:] @ u)[:, None] * u
 
     return Q, R
 
 
 def _extract_eigenvalues(A: np.ndarray, eps: float = 1e-6) -> list[complex]:
-    """
-    Извлекает собственные значения из квазитреугольной матрицы
-    (с блоками 1x1 для вещественных и 2x2 для комплексно-сопряженных пар).
-    """
     n = A.shape[0]
     eigenvalues: list[complex] = []
     i = 0
 
     while i < n:
-        # Проверяем, последний ли это элемент
         if i == n - 1:
             eigenvalues.append(complex(A[i, i], 0.0))
             i += 1
             continue
 
-        # Проверяем поддиагональный элемент A[i+1, i]
-        # Если он достаточно мал или поддиагональ ниже i+1 мала, рассматриваем блок
         subdiag_val = abs(A[i + 1, i])
 
-        # Вычисляем дискриминант 2x2 блока
         a11, a12 = A[i, i], A[i, i + 1]
         a21, a22 = A[i + 1, i], A[i + 1, i + 1]
         trace = a11 + a22
         det = a11 * a22 - a12 * a21
         disc = (a11 - a22) ** 2 + 4.0 * a12 * a21
 
-        # Если дискриминант отрицателен, это пара комплексных корней
         if disc < 0.0:
             re = trace / 2.0
             im = np.sqrt(-disc) / 2.0
@@ -115,19 +107,6 @@ def qr_eigenvalues(
     eps: float = 1e-6,
     max_iter: int = 2000,
 ) -> tuple[np.ndarray, int, list[dict[str, Any]]]:
-    """
-    Находит все собственные значения матрицы A с помощью QR-алгоритма.
-
-    Параметры:
-      A: квадратная вещественная матрица (n x n)
-      eps: требуемая точность вычислений
-      max_iter: максимальное число итераций
-
-    Возвращает:
-      eigenvalues: массив комплексных собственных значений (длина n)
-      iterations: количество выполненных итераций
-      history: список шагов с погрешностями
-    """
     A_curr = np.asarray(A, dtype=np.float64).copy()
     n = A_curr.shape[0]
 
@@ -143,7 +122,6 @@ def qr_eigenvalues(
 
         curr_eigs = _sort_eigenvalues(_extract_eigenvalues(A_curr, eps=eps))
 
-        # Погрешность: максимальное изменение собственных значений между шагами
         diff = float(np.max(np.abs(curr_eigs - prev_eigs)))
 
         history.append(
@@ -162,41 +140,64 @@ def qr_eigenvalues(
 
 
 def main() -> None:
-    """Демонстрация работы QR-разложения и QR-алгоритма."""
-    print("=== 1. Демонстрация QR-разложения методом отражений Хаусхолдера ===")
-    A_demo = np.array([[12.0, -51.0, 4.0], [6.0, 167.0, -68.0], [-4.0, 24.0, -41.0]])
-    Q, R = qr_decomposition(A_demo)
-    print("Матрица A:\n", A_demo)
-    print("\nМатрица Q (ортогональная):\n", np.round(Q, 4))
-    print("\nМатрица R (верхнетреугольная):\n", np.round(R, 4))
-    print("\nПроверка Q @ R == A:", np.allclose(Q @ R, A_demo))
-    print("Проверка Q.T @ Q == I:", np.allclose(Q.T @ Q, np.eye(3)))
+    """Демонстрация работы согласно требованиям задания 1.5."""
+    data_file = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(
+        __file__).parent / "data" / "qr.txt"
+    if not data_file.exists():
+        raise FileNotFoundError(
+            f"Файл с входными данными не найден: {data_file}")
 
-    print("\n=== 2. Демонстрация QR-алгоритма для собственных значений ===")
-    # Матрица с вещественными и комплексно-сопряженными собственными значениями
-    A = np.array([[1.0, 3.0, 1.0], [1.0, 1.0, 4.0], [4.0, 3.0, 1.0]])
     eps = 1e-6
-    print("Входная матрица A:\n", A)
-    print(f"Точность eps = {eps}\n")
 
-    eigenvalues, iterations, _ = qr_eigenvalues(A, eps=eps)
-    print(f"QR-алгоритм завершен за {iterations} итераций.")
-    print("Найденные собственные значения (QR-алгоритм):")
-    for idx, val in enumerate(eigenvalues, start=1):
-        if abs(val.imag) < 1e-8:
-            print(f"  lambda_{idx} = {val.real:10.6f}")
-        else:
-            print(f"  lambda_{idx} = {val.real:10.6f} + {val.imag:10.6f}j")
+    print("=" * 70)
+    print("Лабораторная работа 1.5: QR-разложение и собственные значения")
+    print(f"Чтение входных данных из файла: {data_file}")
+    print("=" * 70)
 
-    # Сравнение с эталоном numpy
-    np_eigs = np.linalg.eigvals(A)
-    np_sorted = _sort_eigenvalues(list(np_eigs))
-    print("\nСобственные значения (numpy.linalg.eigvals):")
-    for idx, val in enumerate(np_sorted, start=1):
-        if abs(val.imag) < 1e-8:
-            print(f"  lambda_{idx} = {val.real:10.6f}")
-        else:
-            print(f"  lambda_{idx} = {val.real:10.6f} + {val.imag:10.6f}j")
+    matrices = read_matrices(data_file)
+    for idx, A in enumerate(matrices, start=1):
+        n = A.shape[0]
+        print(f"\n>>> МАТРИЦА {idx} (размерность n = {n}) <<<")
+
+        print("\nИсходная матрица A:")
+        print(A)
+
+        Q, R = qr_decomposition(A)
+        print("\nМатрица Q (ортогональная, Q^T * Q = I):")
+        print(np.round(Q, 6))
+        print("\n   Матрица R (верхнетреугольная):")
+        print(np.round(R, 6))
+
+        QR_product = Q @ R
+        print("\nРезультат умножения Q · R:")
+        print(np.round(QR_product, 6))
+        diff_qr = np.max(np.abs(QR_product - A))
+        print(f"   Максимальное отклонение ||Q*R - A||: {diff_qr:.2e}")
+
+        eigenvalues, iterations, _ = qr_eigenvalues(A, eps=eps)
+        has_complex = any(abs(val.imag) > 1e-6 for val in eigenvalues)
+        print(
+            f"\nНайденные собственные значения (QR-алгоритм, итераций: {iterations}):")
+        if has_complex:
+            print("   -> Обнаружена комплексно-сопряженная пара собственных значений!")
+        for i, val in enumerate(eigenvalues, start=1):
+            if abs(val.imag) < 1e-8:
+                print(f"   lambda_{i} = {val.real:10.6f}")
+            else:
+                sign = "+" if val.imag >= 0 else "-"
+                print(
+                    f"   lambda_{i} = {val.real:10.6f} {sign} {abs(val.imag):.6f}i  (комплексная пара)")
+
+        print("\nПроверка через NumPy (np.linalg.eigvals):")
+        np_eigs = _sort_eigenvalues(list(np.linalg.eigvals(A)))
+        for i, val in enumerate(np_eigs, start=1):
+            if abs(val.imag) < 1e-8:
+                print(f"   lambda_{i} = {val.real:10.6f}")
+            else:
+                sign = "+" if val.imag >= 0 else "-"
+                print(
+                    f"   lambda_{i} = {val.real:10.6f} {sign} {abs(val.imag):.6f}i")
+        print("=" * 70)
 
 
 if __name__ == "__main__":

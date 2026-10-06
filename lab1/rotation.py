@@ -1,23 +1,20 @@
-"""
-Лабораторная работа 1.4: Метод вращений Якоби для нахождения
-собственных значений и собственных векторов симметрических матриц.
-
-Задание:
-  - Реализовать метод вращений в виде программы (вход: матрица A, точность eps).
-  - Найти собственные значения и собственные векторы.
-  - Проанализировать зависимость погрешности вычислений от числа итераций.
-"""
-
+from pathlib import Path
+import sys
 from typing import Any
-
 import numpy as np
+
+# Добавляем корень проекта в sys.path
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+try:
+    from lab1.io_utils import read_matrices
+except ImportError:
+    from io_utils import read_matrices
 
 
 def off_diagonal_norm(A: np.ndarray) -> float:
-    """
-    Вычисляет евклидову норму внедиагональных элементов:
-      t(A) = sqrt(sum_{i < j} a_{ij}^2)
-    """
     n = A.shape[0]
     total = 0.0
     for i in range(n):
@@ -27,10 +24,6 @@ def off_diagonal_norm(A: np.ndarray) -> float:
 
 
 def find_max_off_diagonal(A: np.ndarray) -> tuple[int, int, float]:
-    """
-    Находит индексы (p, q), p < q, максимального по модулю
-    внедиагонального элемента симметричной матрицы A.
-    """
     n = A.shape[0]
     p, q = 0, 1
     max_val = abs(A[0, 1])
@@ -50,21 +43,6 @@ def jacobi_rotation(
     eps: float = 1e-6,
     max_iter: int = 1000,
 ) -> tuple[np.ndarray, np.ndarray, int, list[dict[str, Any]]]:
-    """
-    Решает полную проблему собственных значений для симметрической матрицы A
-    методом вращений Якоби.
-
-    Параметры:
-      A: симметрическая вещественная матрица (n x n)
-      eps: требуемая точность (критерий останова: t(A) <= eps)
-      max_iter: предельное количество итераций
-
-    Возвращает:
-      eigenvalues: вектор собственных значений (длины n)
-      eigenvectors: ортогональная матрица собственных векторов (столбцы)
-      iterations: количество выполненных итераций
-      history: список словарей с динамикой погрешности на каждой итерации
-    """
     A_curr = np.asarray(A, dtype=np.float64).copy()
     n = A_curr.shape[0]
 
@@ -76,7 +54,6 @@ def jacobi_rotation(
             "Метод вращений Якоби применим только к симметрическим матрицам."
         )
 
-    # Матрица собственных векторов (накапливает произведение матриц вращений)
     V = np.eye(n, dtype=np.float64)
     history: list[dict[str, Any]] = []
 
@@ -84,7 +61,6 @@ def jacobi_rotation(
         err = off_diagonal_norm(A_curr)
         p, q, max_val = find_max_off_diagonal(A_curr)
 
-        # Вычисляем максимальную невязку собственных пар ||A v_i - lambda_i v_i||
         curr_eigvals = np.diag(A_curr)
         residuals = [
             float(np.linalg.norm(A @ V[:, i] - curr_eigvals[i] * V[:, i]))
@@ -101,11 +77,9 @@ def jacobi_rotation(
             }
         )
 
-        # Критерий останова: норма внедиагональных элементов <= eps
         if err <= eps:
             return np.diag(A_curr), V, it - 1, history
 
-        # Вычисление угла вращения phi
         a_pp = A_curr[p, p]
         a_qq = A_curr[q, q]
         a_pq = A_curr[p, q]
@@ -118,17 +92,14 @@ def jacobi_rotation(
         c = np.cos(phi)
         s = np.sin(phi)
 
-        # Матрица плоского вращения U_k
         U = np.eye(n, dtype=np.float64)
         U[p, p] = c
         U[q, q] = c
         U[p, q] = -s
         U[q, p] = s
 
-        # Преобразование подобия: A^(k+1) = U^T * A^(k) * U
         A_curr = U.T @ A_curr @ U
 
-        # Накопление собственных векторов: V^(k+1) = V^(k) * U
         V = V @ U
 
     raise RuntimeError(f"Метод вращений не сошелся за {max_iter} итераций.")
@@ -150,39 +121,65 @@ def print_convergence_analysis(history: list[dict[str, Any]]) -> None:
 
 
 def main() -> None:
-    """Демонстрация работы метода вращений Якоби на тестовой симметричной матрице."""
-    A = np.array([[-8.0, -1.0, 7.0], [-1.0, 7.0, 4.0], [7.0, 4.0, 2.0]])
+    if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+
+    data_file = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).parent / "data" / "rotation.txt"
+    if not data_file.exists():
+        raise FileNotFoundError(f"Файл с входными данными не найден: {data_file}")
+
     eps = 1e-6
 
-    print("Входная симметрическая матрица A:\n", A)
-    print(f"Точность eps = {eps}\n")
+    print("=" * 70)
+    print("Лабораторная работа 1.4: Метод вращений Якоби")
+    print(f"Чтение входных данных из файла: {data_file}")
+    print("=" * 70)
 
-    eigenvalues, eigenvectors, iterations, history = jacobi_rotation(A, eps=eps)
+    matrices = read_matrices(data_file)
+    for idx, A in enumerate(matrices, start=1):
+        n = A.shape[0]
+        print(f"\n>>> МАТРИЦА {idx} (размерность n = {n}) <<<")
+        print("Входная симметрическая матрица A:\n", A)
 
-    print(f"Вычислено за {iterations} итераций:")
-    print("Собственные значения (метод Якоби):\n", np.round(eigenvalues, 6))
+        if not np.allclose(A, A.T):
+            print("Предупреждение: матрица не симметрична, метод Якоби требует симметричности!")
 
-    # Сравнение с эталоном numpy
-    np_vals, _ = np.linalg.eigh(A)
-    print("Собственные значения (numpy.linalg.eigh):\n", np.round(np.sort(np_vals), 6))
+        print(f"\nЗаданная точность вычислений: eps = {eps:.1e}")
 
-    print("\nМатрица собственных векторов (столбцы):\n", np.round(eigenvectors, 6))
+        eigenvalues, V, iterations, history = jacobi_rotation(A, eps=eps)
 
-    # Проверка ортогональности V: V.T @ V == I
-    ortho_check = np.allclose(eigenvectors.T @ eigenvectors, np.eye(A.shape[0]))
-    print(
-        f"Проверка ортогональности собственных векторов (V^T @ V == I): {ortho_check}"
-    )
+        print(f"\nНайденные собственные значения (итераций: {iterations}):")
+        for i, val in enumerate(eigenvalues, start=1):
+            print(f"   lambda_{i} = {val:12.6f}")
 
-    # Проверка равенств A v_i = lambda_i v_i
-    for i in range(len(eigenvalues)):
-        v = eigenvectors[:, i]
-        lam = eigenvalues[i]
-        residual = np.linalg.norm(A @ v - lam * v)
-        print(f"  lambda_{i + 1} = {lam:10.6f}, ||A*v - lambda*v|| = {residual:.2e}")
+        np_vals, _ = np.linalg.eigh(A)
+        print("   Эталонные значения (NumPy eigh):", np.round(np.sort(np_vals), 6))
 
-    print("\n--- Зависимость погрешности от числа итераций ---")
-    print_convergence_analysis(history)
+        print("\nМатрица собственных векторов V (столбцы — ортонормированные векторы):")
+        print(np.round(V, 6))
+        for i in range(n):
+            print(f"   Собственный вектор v_{i+1} для lambda_{i+1}: {np.round(V[:, i], 6)}")
+
+        
+        Lambda = np.diag(eigenvalues)
+        AV = A @ V
+        VLambda = V @ Lambda
+        diff_matrix = np.max(np.abs(AV - VLambda))
+
+        print("\nПроверка матричного равенства A · V = V · Lambda:")
+        print("   Матрица A · V:\n", np.round(AV, 6))
+        print("   Матрица V · Lambda:\n", np.round(VLambda, 6))
+        print(f"   Максимальное отклонение ||A*V - V*Lambda||: {diff_matrix:.2e}")
+
+        ortho_diff = np.max(np.abs(V.T @ V - np.eye(n)))
+        print(f"   Проверка ортогональности базиса ||V^T * V - I||: {ortho_diff:.2e}")
+
+        print("\n--- Зависимость погрешности от числа итераций ---")
+        print_convergence_analysis(history)
+        print("=" * 70)
 
 
 if __name__ == "__main__":
