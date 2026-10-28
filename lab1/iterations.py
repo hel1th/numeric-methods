@@ -2,7 +2,6 @@ from pathlib import Path
 import sys
 import numpy as np
 
-# Добавляем корень проекта в sys.path
 ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
@@ -132,7 +131,7 @@ def main() -> None:
         alpha, beta, alpha_norm = prepare_iteration_system(A, b)
         print(f"Норма матрицы alpha: ||alpha||_inf = {alpha_norm:.4f}")
         if alpha_norm < 1.0:
-            print("  Условие сходимости ||alpha|| < 1 выполнено!")
+            print("  Условие сходимости ||alpha|| < 1 выполнено")
         else:
             print("  Внимание: ||alpha|| >= 1, достаточный критерий сходимости не выполнен.")
 

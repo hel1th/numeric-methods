@@ -6,14 +6,6 @@ import numpy as np
 def read_linear_systems(
     file_path: str | Path,
 ) -> list[tuple[np.ndarray, np.ndarray]]:
-    """
-    Считывает список СЛАУ вида (A, b) из текстового файла.
-
-    Формат файла:
-      - Блоки систем разделяются строкой '---'.
-      - Внутри блока: n строк матрицы A и 1 строка вектора свободных членов b.
-      - Комментарии начинаются с символа '#'.
-    """
     path = Path(file_path)
     if not path.exists():
         raise FileNotFoundError(f"Файл {file_path} не найден.")
@@ -60,15 +52,6 @@ def read_linear_systems(
 def read_tridiagonal_systems(
     file_path: str | Path,
 ) -> list[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
-    """
-    Считывает список трехдиагональных систем (a, b, c, d) из файла.
-
-    Формат блока (4 строки):
-      Строка 1: поддиагональ a (длина n - 1)
-      Строка 2: главная диагональ b (длина n)
-      Строка 3: наддиагональ c (длина n - 1)
-      Строка 4: правая часть d (длина n)
-    """
     path = Path(file_path)
     if not path.exists():
         raise FileNotFoundError(f"Файл {file_path} не найден.")
@@ -118,10 +101,6 @@ def read_tridiagonal_systems(
 
 
 def read_matrices(file_path: str | Path) -> list[np.ndarray]:
-    """
-    Считывает список квадратных матриц из текстового файла.
-    Блоки матриц разделяются строкой '---'.
-    """
     path = Path(file_path)
     if not path.exists():
         raise FileNotFoundError(f"Файл {file_path} не найден.")

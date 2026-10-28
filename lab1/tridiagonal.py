@@ -20,7 +20,6 @@ def check_diagonal_dominance(
     n = len(b)
     has_strict = False
 
-    # Первая строка
     if abs(b[0]) < abs(c[0]):
         return False
     if abs(b[0]) > abs(c[0]):

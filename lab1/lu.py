@@ -2,7 +2,6 @@ from pathlib import Path
 import sys
 import numpy as np
 
-# Добавляем корень проекта в sys.path
 ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
@@ -66,12 +65,12 @@ def lu_solve(
     n = len(b)
     b_permuted = b[p]
 
-    # Прямой ход: L y = P b
+    # Прямой ход L y = P b
     y = np.zeros(n, dtype=np.float64)
     for i in range(n):
         y[i] = b_permuted[i] - np.dot(L[i, :i], y[:i])
 
-    # Обратный ход: U x = y
+    # Обратный ход U x = y
     x = np.zeros(n, dtype=np.float64)
     for i in range(n - 1, -1, -1):
         x[i] = (y[i] - np.dot(U[i, i + 1:], x[i + 1:])) / U[i, i]
@@ -117,44 +116,36 @@ def main() -> None:
         print("Вектор правых частей b:")
         print(b)
 
-        # Выполняем LU-разложение с частичным выбором
         L, U, p, swaps = lu_factor(A)
 
-        # Матрицы L и U
         print("\nМатрица L (нижнетреугольная с 1 на диагонали):")
         print(np.round(L, 6))
         print("   Матрица U (верхнетреугольная):")
         print(np.round(U, 6))
 
-        # Результат умножения L · U
         LU_prod = L @ U
         print("\nРезультат умножения L · U:")
         print(np.round(LU_prod, 6))
 
-        # Решение системы Ax = b
         x = lu_solve(L, U, p, b)
         print("\nРешение системы Ax = b:")
         print("   x =", np.round(x, 6))
         print("   Невязка ||Ax - b||:", np.max(np.abs(A @ x - b)))
 
-        # Обратная матрица A^(-1) через LU-разложение
         A_inv = lu_inverse(L, U, p)
         print("\nОбратная матрица A^(-1):")
         print(np.round(A_inv, 6))
 
-        # Определитель матрицы det(A) через LU-разложение
         det = lu_det(U, swaps)
         print(
             f"\nОпределитель det(A) = {det:.6f} (np.linalg.det: {np.linalg.det(A):.6f})")
 
-        # Проверка A · A^(-1) = E
         AA_inv = A @ A_inv
         diff_inv = np.max(np.abs(AA_inv - np.eye(n)))
         print("\nПроверка A · A^(-1) = E:")
         print(np.round(AA_inv, 6))
         print(f"   Максимальное отклонение ||A * A^(-1) - E||: {diff_inv:.2e}")
 
-        # Проверка L · U = P · A (где P — матрица перестановок)
         P = np.eye(n)[p]
         PA = P @ A
         diff_pa = np.max(np.abs(LU_prod - PA))

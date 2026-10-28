@@ -3,7 +3,6 @@ import sys
 from typing import Any
 import numpy as np
 
-# Добавляем корень проекта в sys.path
 ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
@@ -106,7 +105,6 @@ def jacobi_rotation(
 
 
 def print_convergence_analysis(history: list[dict[str, Any]]) -> None:
-    """Выводит таблицу зависимости погрешности от номера итерации."""
     print(
         f"{'Шаг':>6} | {'||Внедиаг||':>14} | {'Max |a_ij|':>14} | {'Max ||A*v - lam*v||':>22}"
     )
